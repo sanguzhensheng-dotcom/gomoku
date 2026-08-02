@@ -132,11 +132,11 @@ let flashAlpha = 0;
 // マウス・タッチ座標
 let mouseX = 0;
 let mouseY = 0;
-let mouseClickedFlag = false;
 
 // サウンド (Web Audio API)
 let audioCtx = null;
 
+// iOS等で音声をアンロックするための初期化関数
 function initAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -944,14 +944,18 @@ function updatePointer(e) {
 }
 
 canvas.addEventListener('pointermove', updatePointer);
+
+// [修正点1: タッチ開始時にオーディオを確実に初期化]
 canvas.addEventListener('pointerdown', (e) => {
-  // 初回タッチ時にAudioをResumeする
-  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  initAudio(); 
   updatePointer(e);
 });
+
+// [修正点2: タッチ終了時に描画フレームを待たず即時処理を実行してラグを解消]
 canvas.addEventListener('pointerup', (e) => {
+  initAudio(); 
   updatePointer(e);
-  mouseClickedFlag = true;
+  handleMousePressed(); // キューに溜めずに同期的・即座に実行する
 });
 
 function gameLoop() {
@@ -963,10 +967,7 @@ function gameLoop() {
     updateAndDrawGame();
   }
 
-  if (mouseClickedFlag) {
-    mouseClickedFlag = false;
-    handleMousePressed();
-  }
+  // ※mouseClickedFlag を使用した非同期処理はラグの原因になるため削除しました
 
   requestAnimationFrame(gameLoop);
 }
@@ -1003,10 +1004,11 @@ function drawTitleScreen() {
   ctx.fillStyle = '#ffffff';
   ctx.fillText("五目並べセレクション", WIDTH / 2, 200 + floatY);
 
+  // [修正点3: 「⚔️」絵文字を「⚪」に変更し、スマホ環境での横幅ズレ（右寄り）を解決]
   drawTitleButton(WIDTH / 2 - 135, 300, 270, 50, "🌀 量子 1P (vs AI)", '#006eb4', '#00b4f0', 1);
   drawTitleButton(WIDTH / 2 - 135, 370, 270, 50, "🌀 量子 2P (対戦)", '#148264', '#28be82', 2);
   drawTitleButton(WIDTH / 2 - 135, 460, 270, 50, "⚫ 通常 1P (vs AI)", '#78501e', '#b47832', 3);
-  drawTitleButton(WIDTH / 2 - 135, 530, 270, 50, "⚔️ 通常 2P (対戦)", '#823232', '#be5050', 4);
+  drawTitleButton(WIDTH / 2 - 135, 530, 270, 50, "⚪ 通常 2P (対戦)", '#823232', '#be5050', 4);
   drawTitleButton(WIDTH / 2 - 135, 620, 270, 45, "?  ルールを見る", '#37415a', '#4b5a78', 5);
 
   if (showRules) {
