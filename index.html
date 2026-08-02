@@ -2,7 +2,9 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>五目並べセレクション (Quantum & Classic Gomoku)</title>
+    <!-- スマホ向けビューポート設定（ズーム禁止・等倍表示） -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>五目並べセレクション (Quantum & Classic Gomoku) - Mobile</title>
     <style>
         body {
             margin: 0;
@@ -21,16 +23,19 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.8);
             border-radius: 4px;
             cursor: pointer;
-            /* 画面いっぱいに表示・アスペクト比を維持 */
+            /* スマホのタッチアクション（スクロールやスワイプ）を無効化 */
+            touch-action: none;
+            /* 画面いっぱいに表示しつつ、550:950のアスペクト比を維持 */
             width: 100vw;
             height: 100vh;
-            max-width: calc(100vh * (770 / 610));
-            max-height: calc(100vw * (610 / 770));
+            max-width: calc(100vh * (550 / 950));
+            max-height: calc(100vw * (950 / 550));
+            object-fit: contain;
         }
     </style>
 </head>
 <body>
-<canvas id="gameCanvas" width="770" height="610"></canvas>
+<canvas id="gameCanvas" width="550" height="950"></canvas>
 
 <script>
 // ----------------------------------------------------
@@ -42,10 +47,10 @@ const COLS = 10;
 const ROWS = 10;
 const CELL_SIZE = 55;
 const OFFSET_Y = 60;
-const SIDEBAR_WIDTH = 220;
+const PANEL_Y = 610; // ボトムパネルの開始Y座標
 
-const WIDTH = 770;
-const HEIGHT = 610;
+const WIDTH = 550;
+const HEIGHT = 950;
 
 // ゲームモード管理
 const MODE_QUANTUM_1P = 0; // 量子 1P vs AI
@@ -124,7 +129,7 @@ let confettis = [];
 
 let flashAlpha = 0;
 
-// マウス座標
+// マウス・タッチ座標
 let mouseX = 0;
 let mouseY = 0;
 let mouseClickedFlag = false;
@@ -135,6 +140,9 @@ let audioCtx = null;
 function initAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
   }
 }
 
@@ -265,7 +273,7 @@ let prevTitleHover1 = false, prevTitleHover2 = false, prevTitleHover3 = false, p
 let prevRulesCloseHover = false;
 let prevOverlayBtn1 = false, prevOverlayBtn2 = false;
 let prevModalBtn1 = false, prevModalBtn2 = false;
-let prevSidebarRetryHover = false, prevSidebarTitleHover = false;
+let prevBottomPanelRetryHover = false, prevBottomPanelTitleHover = false;
 
 // クラス定義
 class TitleParticle {
@@ -336,7 +344,7 @@ class BoardParticle {
     this.reset();
   }
   reset() {
-    this.x = Math.random() * (COLS * CELL_SIZE);
+    this.x = Math.random() * WIDTH;
     this.y = OFFSET_Y + Math.random() * (ROWS * CELL_SIZE);
     this.vx = (Math.random() - 0.5) * 0.4;
     this.vy = (Math.random() - 0.5) * 0.6;
@@ -346,7 +354,7 @@ class BoardParticle {
   update() {
     this.x += this.vx;
     this.y += this.vy;
-    if (this.x < 0 || this.x > COLS * CELL_SIZE || this.y < OFFSET_Y || this.y > OFFSET_Y + ROWS * CELL_SIZE) {
+    if (this.x < 0 || this.x > WIDTH || this.y < OFFSET_Y || this.y > OFFSET_Y + ROWS * CELL_SIZE) {
       this.reset();
     }
   }
@@ -384,7 +392,7 @@ class Ripple {
 
 class Confetti {
   constructor(winner) {
-    this.x = Math.random() * (COLS * CELL_SIZE);
+    this.x = Math.random() * WIDTH;
     this.y = -50 - Math.random() * 50;
     this.vx = (Math.random() - 0.5) * 3;
     this.vy = 2.0 + Math.random() * 3.0;
@@ -928,16 +936,21 @@ let frameCount = 0;
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-canvas.addEventListener('mousemove', (e) => {
+// ポインターイベントによる入力を統合（マウス・タッチ両対応）
+function updatePointer(e) {
   const rect = canvas.getBoundingClientRect();
   mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
   mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
-});
+}
 
-canvas.addEventListener('click', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
-  mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+canvas.addEventListener('pointermove', updatePointer);
+canvas.addEventListener('pointerdown', (e) => {
+  // 初回タッチ時にAudioをResumeする
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  updatePointer(e);
+});
+canvas.addEventListener('pointerup', (e) => {
+  updatePointer(e);
   mouseClickedFlag = true;
 });
 
@@ -982,19 +995,19 @@ function drawTitleScreen() {
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '42px sans-serif';
+  ctx.font = '38px sans-serif';
   for (let i = 6; i > 0; i--) {
     ctx.fillStyle = `rgba(0, 150, 255, ${0.15 * i})`;
-    ctx.fillText("五目並べセレクション", WIDTH / 2, 110 + floatY);
+    ctx.fillText("五目並べセレクション", WIDTH / 2, 200 + floatY);
   }
   ctx.fillStyle = '#ffffff';
-  ctx.fillText("五目並べセレクション", WIDTH / 2, 110 + floatY);
+  ctx.fillText("五目並べセレクション", WIDTH / 2, 200 + floatY);
 
-  drawTitleButton(WIDTH / 2 - 135, 195, 270, 45, "🌀 量子 1P (vs AI)", '#006eb4', '#00b4f0', 1);
-  drawTitleButton(WIDTH / 2 - 135, 250, 270, 45, "🌀 量子 2P (対戦)", '#148264', '#28be82', 2);
-  drawTitleButton(WIDTH / 2 - 135, 320, 270, 45, "⚫ 通常 1P (vs AI)", '#78501e', '#b47832', 3);
-  drawTitleButton(WIDTH / 2 - 135, 375, 270, 45, "⚔️ 通常 2P (対戦)", '#823232', '#be5050', 4);
-  drawTitleButton(WIDTH / 2 - 135, 440, 270, 38, "?  ルールを見る", '#37415a', '#4b5a78', 5);
+  drawTitleButton(WIDTH / 2 - 135, 300, 270, 50, "🌀 量子 1P (vs AI)", '#006eb4', '#00b4f0', 1);
+  drawTitleButton(WIDTH / 2 - 135, 370, 270, 50, "🌀 量子 2P (対戦)", '#148264', '#28be82', 2);
+  drawTitleButton(WIDTH / 2 - 135, 460, 270, 50, "⚫ 通常 1P (vs AI)", '#78501e', '#b47832', 3);
+  drawTitleButton(WIDTH / 2 - 135, 530, 270, 50, "⚔️ 通常 2P (対戦)", '#823232', '#be5050', 4);
+  drawTitleButton(WIDTH / 2 - 135, 620, 270, 45, "?  ルールを見る", '#37415a', '#4b5a78', 5);
 
   if (showRules) {
     drawRulesModal();
@@ -1041,7 +1054,7 @@ function drawTitleButton(x, y, w, h, label, bg, hoverBg, btnId) {
   ctx.stroke();
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = '13px sans-serif';
+  ctx.font = '15px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(label, x + w / 2, y + h / 2);
@@ -1052,7 +1065,7 @@ function drawRulesModal() {
   ctx.fillStyle = 'rgba(10, 15, 25, 0.86)';
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  let modalW = 500, modalH = 380;
+  let modalW = 480, modalH = 380;
   let modalX = (WIDTH - modalW) / 2.0;
   let modalY = (HEIGHT - modalH) / 2.0;
 
@@ -1069,7 +1082,7 @@ function drawRulesModal() {
   ctx.textBaseline = 'middle';
   ctx.fillText("【 ルール説明 】", modalX + modalW / 2, modalY + 28);
 
-  ctx.font = '12px sans-serif';
+  ctx.font = '12.5px sans-serif';
   ctx.fillStyle = '#bde4ff';
   ctx.textAlign = 'left';
   
@@ -1091,29 +1104,29 @@ function drawRulesModal() {
   ];
 
   rulesText.forEach((txt, idx) => {
-    let indent = (idx >= 10 && idx <= 11) ? 35 : 25;
+    let indent = (idx >= 10 && idx <= 11) ? 35 : 15;
     let offsetIdx = idx > 9 ? idx + 0.1 : idx;
     ctx.fillText(txt, modalX + indent, startY + lineH * offsetIdx);
   });
 
   let btnX = modalX + modalW / 2 - 60;
-  let btnY = modalY + modalH - 35;
-  let hover = isMouseOver(btnX, btnY, 120, 30);
+  let btnY = modalY + modalH - 40;
+  let hover = isMouseOver(btnX, btnY, 120, 32);
   if (hover && !prevRulesCloseHover) playHoverSE();
   prevRulesCloseHover = hover;
 
   ctx.fillStyle = hover ? '#6e788c' : '#505a6e';
   ctx.strokeStyle = 'rgba(255,255,255,0.7)';
   ctx.lineWidth = hover ? 2 : 1;
-  roundRect(ctx, btnX, btnY, 120, 30, 6);
+  roundRect(ctx, btnX, btnY, 120, 32, 6);
   ctx.fill();
   ctx.stroke();
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = '13px sans-serif';
+  ctx.font = '14px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText("閉じる", btnX + 60, btnY + 15);
+  ctx.fillText("閉じる", btnX + 60, btnY + 16);
 }
 
 function updateAndDrawGame() {
@@ -1164,7 +1177,7 @@ function updateAndDrawGame() {
   updateAndDrawRipples();
   drawHoverGuide();
   drawTopHeader();
-  drawSidebar();
+  drawBottomPanel();
 
   if (flashAlpha > 0) {
     ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha / 255})`;
@@ -1201,7 +1214,7 @@ function drawBoard() {
   }
 
   ctx.fillStyle = bgCol;
-  ctx.fillRect(0, OFFSET_Y, COLS * CELL_SIZE, ROWS * CELL_SIZE);
+  ctx.fillRect(0, OFFSET_Y, WIDTH, ROWS * CELL_SIZE);
 
   if (!isClassicMode() && gameState !== STATE_ANIMATING && gameState !== STATE_OBSERVED_WAIT && gameState !== STATE_SHOW_RESULT) {
     let ptFactor = (transitionTimer > 0) ? (1.0 - (transitionTimer / TRANSITION_DURATION)) : 1.0;
@@ -1219,15 +1232,14 @@ function drawBoard() {
   }
   for (let j = 0; j < ROWS; j++) {
     let cy = OFFSET_Y + j * CELL_SIZE + CELL_SIZE / 2.0;
-    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(COLS * CELL_SIZE, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(WIDTH, cy); ctx.stroke();
   }
 }
 
 function drawHoverGuide() {
   if (gameState !== STATE_PLACE || transitionTimer > 0 || isAiTurn()) return;
 
-  let sbX = COLS * CELL_SIZE;
-  if (mouseX < 0 || mouseX >= sbX || mouseY < OFFSET_Y || mouseY >= OFFSET_Y + ROWS * CELL_SIZE) return;
+  if (mouseX < 0 || mouseX >= WIDTH || mouseY < OFFSET_Y || mouseY >= OFFSET_Y + ROWS * CELL_SIZE) return;
 
   let gx = Math.floor(mouseX / CELL_SIZE);
   let gy = Math.floor((mouseY - OFFSET_Y) / CELL_SIZE);
@@ -1423,17 +1435,17 @@ function updateAndDrawConfetti() {
   }
 }
 
-function drawSidebar() {
-  let sbX = COLS * CELL_SIZE;
-
+function drawBottomPanel() {
+  // ボトムパネルの背景
   ctx.fillStyle = '#192030';
-  ctx.fillRect(sbX, 0, SIDEBAR_WIDTH, HEIGHT);
+  ctx.fillRect(0, PANEL_Y, WIDTH, HEIGHT - PANEL_Y);
   ctx.strokeStyle = '#2d3750';
   ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(sbX, 0); ctx.lineTo(sbX, HEIGHT); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, PANEL_Y); ctx.lineTo(WIDTH, PANEL_Y); ctx.stroke();
 
+  // ターン表示
   ctx.fillStyle = currentPlayer === 1 ? '#2878de' : '#dc4646';
-  roundRect(ctx, sbX + 20, 15, 180, 36, 6);
+  roundRect(ctx, WIDTH / 2 - 90, PANEL_Y + 15, 180, 36, 6);
   ctx.fill();
 
   ctx.fillStyle = '#ffffff';
@@ -1445,49 +1457,51 @@ function drawSidebar() {
   } else {
     turnStr = (currentPlayer === 1) ? "P1 (黒) のターン" : ((gameMode === MODE_QUANTUM_1P) ? "AI (白) のターン" : "P2 (白) のターン");
   }
-  ctx.fillText(turnStr, sbX + SIDEBAR_WIDTH / 2, 33);
+  ctx.fillText(turnStr, WIDTH / 2, PANEL_Y + 33);
 
   if (!isClassicMode()) {
+    // 確率情報ボックス
     ctx.fillStyle = '#232d41';
     ctx.strokeStyle = '#3c4b69';
     ctx.lineWidth = 1;
-    roundRect(ctx, sbX + 20, 60, 180, 120, 8);
+    roundRect(ctx, 25, PANEL_Y + 65, 240, 120, 8);
     ctx.fill(); ctx.stroke();
 
-    let stoneX = sbX + SIDEBAR_WIDTH / 2;
+    let stoneX = 25 + 120;
     ctx.strokeStyle = '#000000'; ctx.lineWidth = 2;
     ctx.fillStyle = lerpColorHex('#fafafa', '#141414', currentProb);
-    ctx.beginPath(); ctx.arc(stoneX, 105, 48 / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(stoneX, PANEL_Y + 115, 48 / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 
     ctx.fillStyle = currentProb >= 0.5 ? '#ffffff' : '#000000';
     ctx.font = '14px sans-serif';
-    ctx.fillText(Math.floor(currentProb * 100) + "%", stoneX, 105);
+    ctx.fillText(Math.floor(currentProb * 100) + "%", stoneX, PANEL_Y + 115);
 
     ctx.fillStyle = '#b4c8e6';
-    ctx.font = '12px sans-serif';
-    ctx.fillText("黒の出現確率", stoneX, 155);
+    ctx.font = '13px sans-serif';
+    ctx.fillText("黒の出現確率", stoneX, PANEL_Y + 160);
 
+    // エネルギー情報ボックス
     ctx.fillStyle = '#232d41';
     ctx.strokeStyle = '#3c4b69';
     ctx.lineWidth = 1;
-    roundRect(ctx, sbX + 20, 190, 180, 60, 8);
+    roundRect(ctx, 285, PANEL_Y + 65, 240, 120, 8);
     ctx.fill(); ctx.stroke();
 
     ctx.fillStyle = '#b4c8e6';
-    ctx.font = '12px sans-serif';
-    ctx.fillText("観測エネルギー", sbX + SIDEBAR_WIDTH / 2, 206);
+    ctx.font = '13px sans-serif';
+    ctx.fillText("観測エネルギー", 285 + 120, PANEL_Y + 95);
 
     let curEnergy = getCurrentPlayerEnergy();
     let curCooldown = getCurrentPlayerCooldown();
 
     if (curEnergy === 0) {
       ctx.fillStyle = '#ff6464';
-      ctx.font = '12px sans-serif';
-      ctx.fillText("冷却中 (あと " + curCooldown + " ターン)", sbX + SIDEBAR_WIDTH / 2, 232);
+      ctx.font = '14px sans-serif';
+      ctx.fillText("冷却中 (あと " + curCooldown + " ターン)", 285 + 120, PANEL_Y + 145);
     } else {
       for (let i = 0; i < MAX_ENERGY; i++) {
-        let ex = sbX + 65 + i * 45;
-        let ey = 232;
+        let ex = 285 + 80 + i * 40;
+        let ey = PANEL_Y + 145;
         if (i < curEnergy) {
           ctx.fillStyle = '#00dcff';
           ctx.strokeStyle = '#00ffff';
@@ -1501,131 +1515,135 @@ function drawSidebar() {
       }
     }
   } else {
+    // クラシックモード時の情報ボックス
     ctx.fillStyle = '#232d41';
     ctx.strokeStyle = '#3c4b69';
     ctx.lineWidth = 1;
-    roundRect(ctx, sbX + 20, 60, 180, 100, 8);
+    roundRect(ctx, WIDTH / 2 - 150, PANEL_Y + 65, 300, 120, 8);
     ctx.fill(); ctx.stroke();
 
     ctx.fillStyle = '#b4c8e6';
-    ctx.font = '13px sans-serif';
-    ctx.fillText("【 通常五目並べ 】", sbX + SIDEBAR_WIDTH / 2, 90);
-    ctx.font = '12px sans-serif';
-    ctx.fillText("交互に石を置いていき", sbX + SIDEBAR_WIDTH / 2, 120);
-    ctx.fillText("5つ並べたら勝利！", sbX + SIDEBAR_WIDTH / 2, 140);
+    ctx.font = '15px sans-serif';
+    ctx.fillText("【 通常五目並べ 】", WIDTH / 2, PANEL_Y + 95);
+    ctx.font = '14px sans-serif';
+    ctx.fillText("交互に石を置いていき", WIDTH / 2, PANEL_Y + 135);
+    ctx.fillText("5つ並べたら勝利！", WIDTH / 2, PANEL_Y + 160);
   }
 
+  // ステータス表示
   ctx.fillStyle = '#b4c8e6';
-  ctx.font = '13px sans-serif';
+  ctx.font = '15px sans-serif';
   if (gameState === STATE_PLACE) {
     if (transitionTimer > 0) {
       ctx.fillStyle = '#8ce0dc';
-      ctx.fillText("状態を復元中...", sbX + SIDEBAR_WIDTH / 2, 275);
+      ctx.fillText("状態を復元中...", WIDTH / 2, PANEL_Y + 220);
     } else if (isAiTurn()) {
       ctx.fillStyle = '#ffc800';
-      ctx.fillText("AIが思考中...", sbX + SIDEBAR_WIDTH / 2, 275);
+      ctx.fillText("AIが思考中...", WIDTH / 2, PANEL_Y + 220);
     } else {
-      ctx.fillText("盤面をクリックして配置", sbX + SIDEBAR_WIDTH / 2, 275);
+      ctx.fillText("盤面をタップして配置", WIDTH / 2, PANEL_Y + 220);
     }
   } else if (gameState === STATE_ANIMATING) {
     ctx.fillStyle = '#ffb400';
-    ctx.fillText("観測中...", sbX + SIDEBAR_WIDTH / 2, 275);
+    ctx.fillText("観測中...", WIDTH / 2, PANEL_Y + 220);
   } else if (gameState === STATE_OBSERVED_WAIT) {
     ctx.fillStyle = '#ffc800';
-    ctx.fillText("観測完了！結果確認...", sbX + SIDEBAR_WIDTH / 2, 275);
+    ctx.fillText("観測完了！結果確認...", WIDTH / 2, PANEL_Y + 220);
   } else if (gameState === STATE_WIN_LINE) {
     ctx.fillStyle = '#ff5050';
-    ctx.fillText("決着！ライン確認中...", sbX + SIDEBAR_WIDTH / 2, 275);
+    ctx.fillText("決着！ライン確認中...", WIDTH / 2, PANEL_Y + 220);
   } else if (gameState === STATE_GAME_OVER) {
     ctx.fillStyle = '#ff5050';
-    ctx.font = '16px sans-serif';
-    ctx.fillText("GAME OVER!", sbX + SIDEBAR_WIDTH / 2, 265);
+    ctx.font = '18px sans-serif';
+    ctx.fillText("GAME OVER!", WIDTH / 2, PANEL_Y + 215);
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = '13px sans-serif';
+    ctx.font = '15px sans-serif';
     let resStr = "";
     if (winner === 1) resStr = "黒 (P1) の勝利";
     else if (winner === 2) resStr = (gameMode === MODE_QUANTUM_1P || gameMode === MODE_CLASSIC_1P) ? "AI (白) の勝利" : "白 (P2) の勝利";
     else resStr = "引き分け (DRAW)";
-    ctx.fillText(resStr, sbX + SIDEBAR_WIDTH / 2, 290);
+    ctx.fillText(resStr, WIDTH / 2, PANEL_Y + 240);
 
-    let retryHover = isMouseOver(sbX + 20, 330, 180, 38);
-    if (retryHover && !prevSidebarRetryHover) playHoverSE();
-    prevSidebarRetryHover = retryHover;
+    let retryHover = isMouseOver(WIDTH / 2 - 90, PANEL_Y + 265, 180, 42);
+    if (retryHover && !prevBottomPanelRetryHover) playHoverSE();
+    prevBottomPanelRetryHover = retryHover;
 
     ctx.fillStyle = retryHover ? '#28b464' : '#1e8c50';
     ctx.strokeStyle = 'rgba(255,100,100,0.39)';
     ctx.lineWidth = 1;
-    roundRect(ctx, sbX + 20, 330, 180, 38, 6);
+    roundRect(ctx, WIDTH / 2 - 90, PANEL_Y + 265, 180, 42, 6);
     ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#ffffff';
-    ctx.font = '13px sans-serif';
-    ctx.fillText("↺ もう一度遊ぶ", sbX + SIDEBAR_WIDTH / 2, 330 + 19);
+    ctx.font = '14px sans-serif';
+    ctx.fillText("↺ もう一度遊ぶ", WIDTH / 2, PANEL_Y + 265 + 21);
   } else {
-    prevSidebarRetryHover = false;
+    prevBottomPanelRetryHover = false;
   }
 
   if (!isClassicMode() && (gameState === STATE_CHOICE || gameState === STATE_SHOW_RESULT)) {
-    drawSidebarOverlay(sbX);
+    drawPanelOverlay();
   }
 
-  let titleHover = isMouseOver(sbX + 20, HEIGHT - 52, 180, 40);
-  if (titleHover && !prevSidebarTitleHover) playHoverSE();
-  prevSidebarTitleHover = titleHover;
+  let titleHover = isMouseOver(WIDTH / 2 - 90, HEIGHT - 55, 180, 42);
+  if (titleHover && !prevBottomPanelTitleHover) playHoverSE();
+  prevBottomPanelTitleHover = titleHover;
 
   ctx.fillStyle = titleHover ? '#64738f' : '#465573';
   ctx.strokeStyle = 'rgba(255,255,255,0.39)';
   ctx.lineWidth = 1;
-  roundRect(ctx, sbX + 20, HEIGHT - 52, 180, 40, 6);
+  roundRect(ctx, WIDTH / 2 - 90, HEIGHT - 55, 180, 42, 6);
   ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ffffff';
-  ctx.font = '13px sans-serif';
-  ctx.fillText("タイトルへ戻る", sbX + SIDEBAR_WIDTH / 2, HEIGHT - 52 + 20);
+  ctx.font = '14px sans-serif';
+  ctx.fillText("タイトルへ戻る", WIDTH / 2, HEIGHT - 55 + 21);
 }
 
-function drawSidebarOverlay(sbX) {
+function drawPanelOverlay() {
   ctx.fillStyle = 'rgba(15, 22, 36, 0.96)';
-  ctx.fillRect(sbX, 0, SIDEBAR_WIDTH, HEIGHT - 60);
+  ctx.fillRect(0, PANEL_Y, WIDTH, HEIGHT - PANEL_Y - 65);
 
   ctx.strokeStyle = 'rgba(0, 180, 255, 0.7)';
   ctx.lineWidth = 2;
-  roundRect(ctx, sbX + 8, 8, SIDEBAR_WIDTH - 16, HEIGHT - 76, 8);
+  roundRect(ctx, 8, PANEL_Y + 8, WIDTH - 16, HEIGHT - PANEL_Y - 81, 8);
   ctx.stroke();
 
   if (gameState === STATE_CHOICE) {
     ctx.fillStyle = '#00dcff';
-    ctx.font = '16px sans-serif';
-    ctx.fillText("【 観測 】", sbX + SIDEBAR_WIDTH / 2, 50);
+    ctx.font = '18px sans-serif';
+    ctx.fillText("【 観測 】", WIDTH / 2, PANEL_Y + 45);
 
     if (gameMode === MODE_QUANTUM_1P && currentPlayer === 2) {
       ctx.fillStyle = '#ffc800';
-      ctx.font = '13px sans-serif';
-      ctx.fillText("AIが観測を検討中...", sbX + SIDEBAR_WIDTH / 2, 130);
+      ctx.font = '15px sans-serif';
+      ctx.fillText("AIが観測を検討中...", WIDTH / 2, PANEL_Y + 130);
     } else {
       ctx.fillStyle = '#dce6fa';
+      ctx.font = '15px sans-serif';
+      ctx.fillText("量子状態を観測しますか？", WIDTH / 2, PANEL_Y + 80);
       ctx.font = '13px sans-serif';
-      ctx.fillText("量子状態を観測しますか？", sbX + SIDEBAR_WIDTH / 2, 85);
-      ctx.fillText("(エネルギーを1消費)", sbX + SIDEBAR_WIDTH / 2, 105);
+      ctx.fillText("(エネルギーを1消費)", WIDTH / 2, PANEL_Y + 100);
 
-      drawOverlayButton(sbX + 20, 140, 180, 45, "▶ 観測する", '#1e605a', '#28d46e');
-      drawOverlayButton(sbX + 20, 200, 180, 45, "スキップ", '#465064', '#64738c');
+      drawOverlayButton(WIDTH / 2 - 100, PANEL_Y + 125, 200, 48, "▶ 観測する", '#1e605a', '#28d46e');
+      drawOverlayButton(WIDTH / 2 - 100, PANEL_Y + 185, 200, 48, "スキップ", '#465064', '#64738c');
     }
   } else if (gameState === STATE_SHOW_RESULT) {
     ctx.fillStyle = '#ffb400';
-    ctx.font = '16px sans-serif';
-    ctx.fillText("【 観測結果 】", sbX + SIDEBAR_WIDTH / 2, 50);
+    ctx.font = '18px sans-serif';
+    ctx.fillText("【 観測結果 】", WIDTH / 2, PANEL_Y + 50);
 
     ctx.fillStyle = '#dce6fa';
+    ctx.font = '15px sans-serif';
+    ctx.fillText("揃いませんでした", WIDTH / 2, PANEL_Y + 110);
     ctx.font = '13px sans-serif';
-    ctx.fillText("揃いませんでした", sbX + SIDEBAR_WIDTH / 2, 100);
-    ctx.fillText("(自動リトライ中)", sbX + SIDEBAR_WIDTH / 2, 130);
+    ctx.fillText("(自動リトライ中)", WIDTH / 2, PANEL_Y + 140);
 
     let progress = resultTimer / RESULT_DURATION;
     ctx.fillStyle = '#283246';
-    roundRect(ctx, sbX + 30, 180, 160, 6, 3);
+    roundRect(ctx, WIDTH / 2 - 80, PANEL_Y + 180, 160, 6, 3);
     ctx.fill();
     ctx.fillStyle = '#00c8ff';
-    roundRect(ctx, sbX + 30, 180, 160 * progress, 6, 3);
+    roundRect(ctx, WIDTH / 2 - 80, PANEL_Y + 180, 160 * progress, 6, 3);
     ctx.fill();
   }
 }
@@ -1644,16 +1662,16 @@ function drawOverlayButton(x, y, w, h, label, bg, hoverBg) {
   roundRect(ctx, x, y, w, h, 6);
   ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ffffff';
-  ctx.font = '13px sans-serif';
+  ctx.font = '15px sans-serif';
   ctx.fillText(label, x + w / 2, y + h / 2);
 }
 
 function drawVictoryModal() {
   ctx.fillStyle = 'rgba(10, 15, 25, 0.82)';
-  ctx.fillRect(0, 0, COLS * CELL_SIZE, HEIGHT);
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  let modalW = 340, modalH = 220;
-  let modalX = (COLS * CELL_SIZE - modalW) / 2.0;
+  let modalW = 380, modalH = 220;
+  let modalX = (WIDTH - modalW) / 2.0;
   let modalY = (HEIGHT - modalH) / 2.0;
 
   ctx.fillStyle = '#141e30';
@@ -1663,32 +1681,32 @@ function drawVictoryModal() {
   ctx.fill(); ctx.stroke();
 
   ctx.fillStyle = '#ffc800';
-  ctx.font = '22px sans-serif';
+  ctx.font = '24px sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   if (winner === 0) ctx.fillText("★ DRAW (引き分け) ★", modalX + modalW / 2, modalY + 35);
   else ctx.fillText("★ VICTORY! ★", modalX + modalW / 2, modalY + 35);
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = '15px sans-serif';
+  ctx.font = '16px sans-serif';
   if (winner === 1) {
-    ctx.fillText("PLAYER 1 (黒) の勝利！", modalX + modalW / 2, modalY + 70);
+    ctx.fillText("PLAYER 1 (黒) の勝利！", modalX + modalW / 2, modalY + 75);
   } else if (winner === 2) {
     let wName = (gameMode === MODE_QUANTUM_1P || gameMode === MODE_CLASSIC_1P) ? "AI (白)" : "PLAYER 2 (白)";
-    ctx.fillText(wName + " の勝利！", modalX + modalW / 2, modalY + 70);
+    ctx.fillText(wName + " の勝利！", modalX + modalW / 2, modalY + 75);
   } else {
-    ctx.fillText("同時に同数のラインが完成しました！", modalX + modalW / 2, modalY + 70);
+    ctx.fillText("同時に同数のラインが完成しました！", modalX + modalW / 2, modalY + 75);
   }
 
   ctx.fillStyle = '#b4c8e6';
-  ctx.font = '12px sans-serif';
+  ctx.font = '13px sans-serif';
   if (!isClassicMode()) {
-    ctx.fillText("【成立数】 黒: " + p1LineCount + " 本  /  白: " + p2LineCount + " 本", modalX + modalW / 2, modalY + 100);
+    ctx.fillText("【成立数】 黒: " + p1LineCount + " 本  /  白: " + p2LineCount + " 本", modalX + modalW / 2, modalY + 110);
   } else {
-    ctx.fillText("5目並べ達成による勝利", modalX + modalW / 2, modalY + 100);
+    ctx.fillText("5目並べ達成による勝利", modalX + modalW / 2, modalY + 110);
   }
 
-  drawModalButton(modalX + 25, modalY + 145, 135, 42, "RETRY (再戦)", '#1ea05a', '#28d26e', 1);
-  drawModalButton(modalX + 180, modalY + 145, 135, 42, "TITLE (タイトル)", '#3c506e', '#50698c', 2);
+  drawModalButton(modalX + 35, modalY + 150, 145, 45, "RETRY (再戦)", '#1ea05a', '#28d26e', 1);
+  drawModalButton(modalX + 200, modalY + 150, 145, 45, "TITLE", '#3c506e', '#50698c', 2);
 }
 
 function drawModalButton(x, y, w, h, label, bg, hoverBg, btnId) {
@@ -1704,18 +1722,18 @@ function drawModalButton(x, y, w, h, label, bg, hoverBg, btnId) {
   roundRect(ctx, x, y, w, h, 6);
   ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ffffff';
-  ctx.font = '13px sans-serif';
+  ctx.font = '14px sans-serif';
   ctx.fillText(label, x + w / 2, y + h / 2);
 }
 
 function drawTopHeader() {
   ctx.fillStyle = '#141923';
-  ctx.fillRect(0, 0, COLS * CELL_SIZE, OFFSET_Y);
+  ctx.fillRect(0, 0, WIDTH, OFFSET_Y);
   ctx.fillStyle = '#dce6fa';
-  ctx.font = '17px sans-serif';
+  ctx.font = '18px sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   let titleText = isClassicMode() ? "CLASSIC GOMOKU" : "QUANTUM GOMOKU";
-  ctx.fillText(titleText, (COLS * CELL_SIZE) / 2, OFFSET_Y / 2);
+  ctx.fillText(titleText, WIDTH / 2, OFFSET_Y / 2);
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -1735,37 +1753,36 @@ function roundRect(ctx, x, y, w, h, r) {
 function handleMousePressed() {
   if (gameState === STATE_TITLE) {
     if (showRules) {
-      let modalW = 500, modalH = 380;
+      let modalW = 480, modalH = 380;
       let modalX = (WIDTH - modalW) / 2.0;
       let modalY = (HEIGHT - modalH) / 2.0;
-      if (isMouseOver(modalX + modalW / 2 - 60, modalY + modalH - 35, 120, 30) || !isMouseOver(modalX, modalY, modalW, modalH)) {
+      if (isMouseOver(modalX + modalW / 2 - 60, modalY + modalH - 40, 120, 32) || !isMouseOver(modalX, modalY, modalW, modalH)) {
         playClickSE();
         showRules = false;
       }
       return;
     }
 
-    if (isMouseOver(WIDTH / 2 - 135, 195, 270, 45)) {
+    if (isMouseOver(WIDTH / 2 - 135, 300, 270, 50)) {
       playClickSE();
       gameMode = MODE_QUANTUM_1P; resetGame(); gameState = STATE_PLACE;
-    } else if (isMouseOver(WIDTH / 2 - 135, 250, 270, 45)) {
+    } else if (isMouseOver(WIDTH / 2 - 135, 370, 270, 50)) {
       playClickSE();
       gameMode = MODE_QUANTUM_2P; resetGame(); gameState = STATE_PLACE;
-    } else if (isMouseOver(WIDTH / 2 - 135, 320, 270, 45)) {
+    } else if (isMouseOver(WIDTH / 2 - 135, 460, 270, 50)) {
       playClickSE();
       gameMode = MODE_CLASSIC_1P; resetGame(); gameState = STATE_PLACE;
-    } else if (isMouseOver(WIDTH / 2 - 135, 375, 270, 45)) {
+    } else if (isMouseOver(WIDTH / 2 - 135, 530, 270, 50)) {
       playClickSE();
       gameMode = MODE_CLASSIC_2P; resetGame(); gameState = STATE_PLACE;
-    } else if (isMouseOver(WIDTH / 2 - 135, 440, 270, 38)) {
+    } else if (isMouseOver(WIDTH / 2 - 135, 620, 270, 45)) {
       playClickSE();
       showRules = true;
     }
     return;
   }
 
-  let sbX = COLS * CELL_SIZE;
-  if (isMouseOver(sbX + 20, HEIGHT - 52, 180, 40)) {
+  if (isMouseOver(WIDTH / 2 - 90, HEIGHT - 55, 180, 42)) {
     playClickSE();
     gameState = STATE_TITLE;
     return;
@@ -1781,19 +1798,19 @@ function handleMousePressed() {
   }
 
   if (gameState === STATE_GAME_OVER) {
-    let modalW = 340, modalH = 220;
-    let modalX = (COLS * CELL_SIZE - modalW) / 2.0;
+    let modalW = 380, modalH = 220;
+    let modalX = (WIDTH - modalW) / 2.0;
     let modalY = (HEIGHT - modalH) / 2.0;
 
-    if (isMouseOver(modalX + 25, modalY + 145, 135, 42)) {
+    if (isMouseOver(modalX + 35, modalY + 150, 145, 45)) {
       playClickSE();
       resetGame(); gameState = STATE_PLACE; return;
-    } else if (isMouseOver(modalX + 180, modalY + 145, 135, 42)) {
+    } else if (isMouseOver(modalX + 200, modalY + 150, 145, 45)) {
       playClickSE();
       gameState = STATE_TITLE; return;
     }
 
-    if (isMouseOver(sbX + 20, 330, 180, 38)) {
+    if (isMouseOver(WIDTH / 2 - 90, PANEL_Y + 265, 180, 42)) {
       playClickSE();
       resetGame(); gameState = STATE_PLACE;
     }
@@ -1804,10 +1821,10 @@ function handleMousePressed() {
   if (isBoardFull()) return;
 
   if (!isClassicMode() && gameState === STATE_CHOICE) {
-    if (isMouseOver(sbX + 20, 140, 180, 45)) {
+    if (isMouseOver(WIDTH / 2 - 100, PANEL_Y + 125, 200, 48)) {
       playClickSE();
       startObservationAnimation(true);
-    } else if (isMouseOver(sbX + 20, 200, 180, 45)) {
+    } else if (isMouseOver(WIDTH / 2 - 100, PANEL_Y + 185, 200, 48)) {
       playClickSE();
       finishTurn();
     }
@@ -1817,43 +1834,45 @@ function handleMousePressed() {
   if (gameState === STATE_PLACE) {
     if (transitionTimer > 0) return;
 
-    let gx = Math.floor(mouseX / CELL_SIZE);
-    let gy = Math.floor((mouseY - OFFSET_Y) / CELL_SIZE);
+    if (mouseX >= 0 && mouseX < WIDTH && mouseY >= OFFSET_Y && mouseY < OFFSET_Y + ROWS * CELL_SIZE) {
+      let gx = Math.floor(mouseX / CELL_SIZE);
+      let gy = Math.floor((mouseY - OFFSET_Y) / CELL_SIZE);
 
-    if (gx >= 0 && gx < COLS && gy >= 0 && gy < ROWS && mouseX < sbX) {
-      if (isClassicMode()) {
-        if (boardObserved[gx][gy] === 0) {
-          boardObserved[gx][gy] = currentPlayer;
-          ripples.push(new Ripple(gx * CELL_SIZE + CELL_SIZE/2.0, OFFSET_Y + gy * CELL_SIZE + CELL_SIZE/2.0));
-          playPlaceSE();
+      if (gx >= 0 && gx < COLS && gy >= 0 && gy < ROWS) {
+        if (isClassicMode()) {
+          if (boardObserved[gx][gy] === 0) {
+            boardObserved[gx][gy] = currentPlayer;
+            ripples.push(new Ripple(gx * CELL_SIZE + CELL_SIZE/2.0, OFFSET_Y + gy * CELL_SIZE + CELL_SIZE/2.0));
+            playPlaceSE();
 
-          if (hasFiveInARowLine()) {
-            winner = currentPlayer;
-            winLines = [];
-            countAndRecordFiveInARow(currentPlayer);
-            p2LineCount = 1;
-            gameState = STATE_WIN_LINE;
-            winLineTimer = 0;
-          } else if (isBoardFull()) {
-            winner = 0;
-            gameState = STATE_WIN_LINE;
-            winLineTimer = 0;
-          } else {
-            finishTurn();
+            if (hasFiveInARowLine()) {
+              winner = currentPlayer;
+              winLines = [];
+              countAndRecordFiveInARow(currentPlayer);
+              p2LineCount = 1;
+              gameState = STATE_WIN_LINE;
+              winLineTimer = 0;
+            } else if (isBoardFull()) {
+              winner = 0;
+              gameState = STATE_WIN_LINE;
+              winLineTimer = 0;
+            } else {
+              finishTurn();
+            }
           }
-        }
-      } else {
-        if (boardProb[gx][gy] < 0) {
-          boardProb[gx][gy] = currentProb;
-          ripples.push(new Ripple(gx * CELL_SIZE + CELL_SIZE/2.0, OFFSET_Y + gy * CELL_SIZE + CELL_SIZE/2.0));
-          playPlaceSE();
+        } else {
+          if (boardProb[gx][gy] < 0) {
+            boardProb[gx][gy] = currentProb;
+            ripples.push(new Ripple(gx * CELL_SIZE + CELL_SIZE/2.0, OFFSET_Y + gy * CELL_SIZE + CELL_SIZE/2.0));
+            playPlaceSE();
 
-          if (isBoardFull()) {
-            startObservationAnimation(false);
-          } else if (hasFiveInARowLine() && getCurrentPlayerEnergy() >= 1) {
-            gameState = STATE_CHOICE;
-          } else {
-            finishTurn();
+            if (isBoardFull()) {
+              startObservationAnimation(false);
+            } else if (hasFiveInARowLine() && getCurrentPlayerEnergy() >= 1) {
+              gameState = STATE_CHOICE;
+            } else {
+              finishTurn();
+            }
           }
         }
       }
